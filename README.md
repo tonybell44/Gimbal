@@ -1,8 +1,8 @@
 # Gimbal
 Senior Project
 
-Updated to make encoder counts a property of the motor object
+PID control systemm changed to a Cascade Control System
 
-Wrote velocity function 
+Implemented Functions to Facilitate Motor Tuning
 
-Wrote a function for proportional control (must be tested in real life)
+Removed Herobrine 
