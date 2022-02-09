@@ -1,7 +1,7 @@
 # Gimbal
 Senior Project
 
-PID control systemm changed to a Cascade Control System
+PID control system changed to a Cascade Control System
 
 Implemented Functions to Facilitate Motor Tuning
 
