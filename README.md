@@ -1,8 +1,6 @@
 # Gimbal
 Senior Project
 
-PID control system changed to a Cascade Control System
-
-Implemented Functions to Facilitate Motor Tuning
+Changed functionality of Cascade Control -- The math in previous iterations was not actually a velocity controller, but it is now
 
 Removed Herobrine 
