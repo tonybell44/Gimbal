@@ -78,9 +78,9 @@ float Motor::deadband_compensation(float voltage_command)
 	}
 	else {return 0;}
 	
-	Serial.print(" Out_volts: ");
-	Serial.print(out_voltage);
-	Serial.print("\n");
+	//Serial.print(" Out_volts: ");
+	//Serial.print(out_voltage);
+	//Serial.print("\n");
 
 	return out_voltage;
 }
