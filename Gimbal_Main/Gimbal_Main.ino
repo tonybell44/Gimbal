@@ -50,13 +50,14 @@ unsigned long prev;
 double Ts = .005;                     //Ts is in seconds; time between every new state (for cascade control, we are going to use this to control the velocity loop)
 
 //Global Variables for Motors
-Motor roll_Motor = Motor(32,36,7,12,0.8,8384,4); //for these motors, deadband is 0.5 Volts, and the BJT H-bridges drop 1.4 Volts, I think MOSFET H-Bridges drop 0.4 Volts. With the current encoder function, one rotation is 8384
+Motor roll_Motor = Motor(32,36,7,12,0.8,8384,4,1/8.69173967493,Ts); //for these motors, deadband is 0.5 Volts, and the BJT H-bridges drop 1.4 Volts, I think MOSFET H-Bridges drop 0.4 Volts. With the current encoder function, one rotation is 8384
+// For dirty derivative: 8.69173967493 is the max rads/second the motor can go. this is the crossover frequency (i think) and thus the bandwidth, and thus is 1/sigma. so sigma is 1/8.69173967493
 
 //Setup and initialize all neccessary modules/variables
 void setup() {
-  Serial.begin(250000);
+  Serial.begin(115200);
   roll_Motor.motor_setup();
-  roll_Motor.change_control_constants(2, 10, 10);
+  roll_Motor.change_control_constants(5,3,0);
   imu.initialize();
   EncoderInit();                      //Initialize the module for the encoder
   current = micros();                 //milliseconds since arduino start
@@ -80,13 +81,22 @@ void loop() {
     imu.get_all_accel(accel);
     imu.get_all_ang_vel(gyro);
 
+//    Serial.print("accel:");
+//    Serial.print(accel[2]);
+//    Serial.print(" | ");
+//
+//    Serial.print("gyro:");
+//    Serial.print(gyro[2]);
+//    Serial.print("\n");
+
+    
     //Use a complementary filter on the pitch, roll, and yaw
     Complementary(accel, gyro, &pitch, &roll, &yaw, Ts);
 
     //Update the motor object with current encoder inputs so it can calculate the velocity (we may want to consider letting the calc_velocity function update the counts)
     roll_Motor.previous_count = roll_Motor.current_count;
     roll_Motor.current_count = count;
-    roll_Motor.calc_velocity(Ts); //updates current velocity (internal to motor object)
+    roll_Motor.calc_velocity(); //updates current velocity (internal to motor object)
 
     //Serial.print("vTs ");
     //Serial.print(vTs);
@@ -98,14 +108,15 @@ void loop() {
 
     
     //The Current Position will be passed to a PID function, and the motor is driven in this function
-    roll_Motor.CascadeControl(roll, desired_roll,Ts);
-    //roll_Motor.Tune_Velocity_Loop(.5, Ts, 40, 30);
+    roll_Motor.CascadeControl(roll, desired_roll, Ts);
+    //roll_Motor.Tune_Velocity_Loop(3.1415, Ts, 10, 0);
     
     prev = current;
   }
   
-  //Serial.print(" Roll:");
-  //Serial.println(roll);
+  Serial.print(" Roll:");
+  Serial.println(roll);
+  Serial.println("\n");
   //Serial.println("Counts: ");
   //Serial.println(count); 
   //Serial.println("\n");
@@ -163,46 +174,3 @@ void pulseB(){
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// hey tonEE :)

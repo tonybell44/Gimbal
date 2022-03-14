@@ -11,7 +11,7 @@
 #include <math.h>
 
 //Default Constructor
-Motor::Motor(int iin1, int iin2, int eena, float ddead_up, float ddead_low, int ccpr, int proportion)
+Motor::Motor(int iin1, int iin2, int eena, float ddead_up, float ddead_low, int ccpr, int proportion, float sig, float Tstep)
 {
 	in1 = iin1;
 	in2 = iin2;
@@ -26,9 +26,16 @@ Motor::Motor(int iin1, int iin2, int eena, float ddead_up, float ddead_low, int 
 	kp = 2.5; //Default value
 	kv = 1.8; //Default value
 	ki = 2; //Test Value
+	Ts = Tstep;
+	sigma = sig;
+	beta = ((2 * sigma) - Ts) / ((2 * sigma) + Ts);
+	zeta = 2 / ((2 * sigma) + Ts);
+	prev_derivative = 0;
+	prev_proportion = 0;
 
-	velocity_command = 0;  //if it doesnt work, comment these two out 
+	velocity_command = 0;
 	position_error = 0;
+	voltage_integral = 0;
 }
 
 void Motor::motor_setup(){
@@ -45,8 +52,14 @@ void Motor::change_control_constants(float kpos, float kvel, float kint){
 	return;
 }
 
-void Motor::calc_velocity(double Ts){
-	current_velocity = ((current_count - previous_count)/cpr)/Ts;
+void Motor::calc_velocity(){
+	current_velocity = 2 * 3.141593 * ((current_count - previous_count)/cpr)/Ts;	
+}
+
+void Motor::calc_velocity_dirty(){
+	current_velocity = (beta * prev_derivative) + 2 * 3.141593 * (zeta * (((previous_count - current_count)/cpr)));
+	
+	prev_derivative = current_velocity; // For the next loop
 	
 	/*
 	Serial.print("Previous Count: ");
@@ -89,12 +102,14 @@ void Motor::drive_motor(float volt)
 {
 	// we account for deadband by limiting the voltage between dead_low and dead_up
 	float speed = floor((abs(volt)/12) * 255);
+	speed = 255 - speed; //if Pmos on H-Bridge (see Dan Kim for explanation)
 	//Serial.print(" Speed:");
 	//Serial.print(speed);
+	//Serial.print("\n");
 	analogWrite(ena, speed);
 		
 	// Note, for our purpose, when GND of motor is plugged into Out1, volt<0 causes counter clockwise rotation, [state something about the orientation of the IMU]
-	if (volt <= 0){
+	if (volt >= 0){
 		digitalWrite(in1, HIGH);
 		digitalWrite(in2, LOW);
 	}
@@ -105,7 +120,12 @@ void Motor::drive_motor(float volt)
 	return;
 }
 
-void Motor::CascadeControl(float current_position, float desired_position, float Ts){
+void Motor::PIDControl(float current_position, float desired_position){
+	position_error = desired_position - current_position;
+	return;
+}
+
+void Motor::CascadeControl(float current_position, float desired_position){
 	//current and prev will be in microseconds
 	
 	// look into velocity feedforward
@@ -149,7 +169,7 @@ void Motor::CascadeControl(float current_position, float desired_position, float
 // is the velocity loop really doing what it should be doing?
 void Motor::Tune_Velocity_Loop(float velocity, float Ts, float kvel, float kint){
 	float velocity_error = velocity - current_velocity;
-	float voltage_integral = voltage_integral + (velocity_error * Ts);
+	voltage_integral = voltage_integral + (velocity_error * Ts);
 	float voltage_command = (velocity_error * kvel) + (voltage_integral * kint);
 	drive_motor(deadband_compensation(voltage_command));
 	return;
