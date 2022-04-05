@@ -25,14 +25,16 @@ class Motor {
 		float zeta; //Used in dirty derivative calculation.
 		float prev_derivative; //The previous derivative (velocity) of the system
 		float prev_proportion; //The previous proportion of the system
+		
+		float error_integral;
 
 		//Methods
 		void change_control_constants(float kpos, float kvel,float kint); //allows user to change the constants used in CascadeControl
 		void drive_motor(float volt); //speed is based of input voltage; dir = 1 is clockwise
 		float deadband_compensation(float voltage_command); //Adjust input for deadband, input linear scale from -10 -> 10 (0 no movement, 10 fastest, -10 fastest in other direction)
 		void motor_setup(); //Make sure to call this in setup in order to initialize the pins
-		void CascadeControl(float current_position, float desired_position); //does cascade control
-		void PIDControl(float current_position, float desired_position); //does PID control
+		void CascadeControl(float current_position, float desired_position, float gyro); //does cascade control
+		//void PIDControl(float current_position, float desired_position, float derivative); //does PID control
 		void calc_velocity(); //calculates velocity of motor based on encoder counts and counts per rotation of the motor
 		void calc_velocity_dirty(); //calculates velocity of motor based on encoder counts and counts per rotation of the motor, using the dirty derivative
 		void Tune_Velocity_Loop(float velocity, float Ts, float kvel, float kint); //allows user to alter kv to find the brink of instability 
@@ -43,4 +45,11 @@ class Motor {
 		float position_error;
 		float voltage_integral;
 	
+	
+		//PID Testing
+		float proportional(float current_position, float desired_position);
+		float derivative();
+		void integral(float current_position, float desired_position);
+		//float square(float number);
+		void PIDControl(float current_position, float desired_position); //does PID control
 };

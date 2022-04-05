@@ -33,9 +33,12 @@ Motor::Motor(int iin1, int iin2, int eena, float ddead_up, float ddead_low, int 
 	prev_derivative = 0;
 	prev_proportion = 0;
 
+	current_velocity = 0;
 	velocity_command = 0;
 	position_error = 0;
-	voltage_integral = 0;
+	voltage_integral = 0; // for cascade control
+	
+	error_integral = 0; //for PID control
 }
 
 void Motor::motor_setup(){
@@ -120,12 +123,45 @@ void Motor::drive_motor(float volt)
 	return;
 }
 
-void Motor::PIDControl(float current_position, float desired_position){
+/*
+void Motor::PIDControl(float current_position, float desired_position, float derivative){
 	position_error = desired_position - current_position;
+
+	//Apply gains and add the components
+	float voltage_command = (kp * position_error);
+	drive_motor(deadband_compensation(voltage_command));
+	return;
+}
+*/
+
+float Motor::proportional(float current_position, float desired_position){
+    return kp * (desired_position - current_position);
+}
+
+float Motor::derivative(){
+    return kv * current_velocity;
+}
+
+// float Motor::square(float number){
+//     return number * number;
+// }
+
+void Motor::integral(float current_position, float desired_position){
+	float cur_integral = ki * (desired_position - current_position) * Ts;
+	error_integral = cur_integral + error_integral;
+}
+
+void Motor::PIDControl(float current_position, float desired_position){
+    float P = proportional(current_position, desired_position);
+	float D = derivative();
+	integral(current_position, desired_position);
+	float I = error_integral;
+	float output = P + I + D;
+    drive_motor(deadband_compensation(output));
 	return;
 }
 
-void Motor::CascadeControl(float current_position, float desired_position){
+void Motor::CascadeControl(float current_position, float desired_position, float gyro){
 	//current and prev will be in microseconds
 	
 	// look into velocity feedforward
@@ -133,6 +169,14 @@ void Motor::CascadeControl(float current_position, float desired_position){
 	if ((cascade_call_count % pos_vel_proportion) == 0){
 		position_error = desired_position - current_position; // error will range from -pi to pi 
 		velocity_command = position_error * kp; 
+		
+		//feedforward below
+		velocity_command = velocity_command + (gyro * (0));
+		
+		//Serial.print("      gryo: ");
+		//Serial.print(gyro);
+		//Serial.print("\n");
+		
 		//Serial.print("      Velocity Command: ");
 		//Serial.print(velocity_command);
 		//Serial.print("Called\n");
@@ -188,4 +232,8 @@ void Motor::Tune_Position_Loop(float kpos, float kvel, float kint, float current
 	cascade_call_count = cascade_call_count + 1;
 	return;
 }
+
+
+
+
 		    

@@ -19,11 +19,13 @@
  * 
  * What to do next:
  * 
- * 1) Implement the dirty derivative (bandlimited derivative) to remove high frequency noise from the velocity loop
+ * 1) Implement PID control scheme
  * 
- * 2) Tune the velocity controller, then the position controller
+ * 2) Implement Kalman Filtering as proposed in "A correction in feedback loop applied to two-axis gimbal stabilization"
  * 
  * 3) Extend functionality to three motors (remember to change "count" and the interrupts to work with more than one motor/encoder)
+ * 
+ * Roll Motor Connections: ENC_A = 2, ENC_B = 3, eena = 4 (H drive Enable), iin1 = 32, iin2 = 34
  * 
  */
 
@@ -50,14 +52,15 @@ unsigned long prev;
 double Ts = .005;                     //Ts is in seconds; time between every new state (for cascade control, we are going to use this to control the velocity loop)
 
 //Global Variables for Motors
-Motor roll_Motor = Motor(32,36,7,12,0.8,8384,4,1/8.69173967493,Ts); //for these motors, deadband is 0.5 Volts, and the BJT H-bridges drop 1.4 Volts, I think MOSFET H-Bridges drop 0.4 Volts. With the current encoder function, one rotation is 8384
+Motor roll_Motor = Motor(32,34,4,12,0.8,8384,4,1/8.69173967493,Ts); //for these motors, deadband is 0.5 Volts, and the BJT H-bridges drop 1.4 Volts, I think MOSFET H-Bridges drop 0.4 Volts. With the current encoder function, one rotation is 8384
 // For dirty derivative: 8.69173967493 is the max rads/second the motor can go. this is the crossover frequency (i think) and thus the bandwidth, and thus is 1/sigma. so sigma is 1/8.69173967493
 
 //Setup and initialize all neccessary modules/variables
 void setup() {
   Serial.begin(115200);
   roll_Motor.motor_setup();
-  roll_Motor.change_control_constants(5,3,0);
+  //roll_Motor.change_control_constants(5,.16,.32);
+  roll_Motor.change_control_constants(7.20,1,.1);
   imu.initialize();
   EncoderInit();                      //Initialize the module for the encoder
   current = micros();                 //milliseconds since arduino start
@@ -71,9 +74,7 @@ void setup() {
 void loop() {
   // A state machine controls timing so that the delay function need not be used
   current = micros();
-
-  unsigned long vTs = current - prev; //as you will see, vTs (variable time step) will differ from the actual time step 
-  
+  unsigned long vTs = current - prev; //this variable exists to see how far the actual time step differs from Ts
   if((current - prev) >= (Ts*1000000.0))
   {
     //Get all accel and gyroscope values from the IMU and update the global variables
@@ -82,21 +83,20 @@ void loop() {
     imu.get_all_ang_vel(gyro);
 
 //    Serial.print("accel:");
-//    Serial.print(accel[2]);
+//    Serial.print(accel[1]);
 //    Serial.print(" | ");
 //
 //    Serial.print("gyro:");
-//    Serial.print(gyro[2]);
+//    Serial.print(gyro[1]);
 //    Serial.print("\n");
-
     
-    //Use a complementary filter on the pitch, roll, and yaw
-    Complementary(accel, gyro, &pitch, &roll, &yaw, Ts);
+    //Use a complementary filter on IMU data to determine the pitch, roll, and yaw
+    Complementary(accel, gyro, &roll, &pitch, &yaw, Ts);
 
-    //Update the motor object with current encoder inputs so it can calculate the velocity (we may want to consider letting the calc_velocity function update the counts)
+    //Update encoder counts and calculate velocity using the encoder only (does not calculate for the IMU)
     roll_Motor.previous_count = roll_Motor.current_count;
     roll_Motor.current_count = count;
-    roll_Motor.calc_velocity(); //updates current velocity (internal to motor object)
+    roll_Motor.calc_velocity_dirty(); //updates current velocity (internal to motor object)
 
     //Serial.print("vTs ");
     //Serial.print(vTs);
@@ -106,14 +106,17 @@ void loop() {
     //Serial.print(roll_Motor.current_velocity);
     //Serial.print("\n");
 
+    //Pass the velocity calculated from the encoders and the gyroscope data to the Kalman Filter (maybe work on this in the future)
+    //velocity = Kalman(gyro[1], 0, roll_Motor.current_velocity, 0);
     
     //The Current Position will be passed to a PID function, and the motor is driven in this function
-    roll_Motor.CascadeControl(roll, desired_roll, Ts);
+    //roll_Motor.PIDControl(roll, desired_roll);
+    
+    roll_Motor.CascadeControl(roll, desired_roll, gyro[0]);
     //roll_Motor.Tune_Velocity_Loop(3.1415, Ts, 10, 0);
     
     prev = current;
   }
-  
   Serial.print(" Roll:");
   Serial.println(roll);
   Serial.println("\n");
