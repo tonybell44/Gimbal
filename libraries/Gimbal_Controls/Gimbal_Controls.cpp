@@ -64,10 +64,11 @@ void Motor::calc_velocity_dirty(){
 	
 	prev_derivative = current_velocity; // For the next loop
 	
+	
+	//Serial.print("Previous Count: ");
+    //Serial.print(previous_count);
+    //Serial.print("\n");
 	/*
-	Serial.print("Previous Count: ");
-    Serial.print(previous_count);
-    Serial.print("\n");
 	Serial.print("Current Count: ");
     Serial.print(current_count);
     Serial.print("\n");
@@ -101,15 +102,28 @@ float Motor::deadband_compensation(float voltage_command)
 	return out_voltage;
 }
 
-void Motor::drive_motor(float volt)
+void Motor::drive_motor_dead(float volt)
 {
 	// we account for deadband by limiting the voltage between dead_low and dead_up
-	float speed = floor((abs(volt)/12) * 255);
-	speed = 255 - speed; //if Pmos on H-Bridge (see Dan Kim for explanation)
-	//Serial.print(" Speed:");
-	//Serial.print(speed);
-	//Serial.print("\n");
-	analogWrite(ena, speed);
+	float pwm = floor((abs(volt)/12) * 255);
+	//pwm = 255 - pwm; //if Pmos on H-Bridge (see Dan Kim for explanation)
+	
+	int MAX = 125;
+	int MIN = 125;
+	pwm = (pwm/255)*(MAX-MIN) + MIN;
+	/*if (pwm < dead_low){
+		pwm = dead_low;
+	}
+	
+	if (pwm >= dead_up){
+		pwm = dead_up;
+	}*/
+	
+	/*Serial.print(" pwm:");
+	Serial.print(pwm);
+	Serial.print("\n");*/
+	
+	analogWrite(ena, pwm);
 		
 	// Note, for our purpose, when GND of motor is plugged into Out1, volt<0 causes counter clockwise rotation, [state something about the orientation of the IMU]
 	if (volt >= 0){
@@ -120,6 +134,38 @@ void Motor::drive_motor(float volt)
 		digitalWrite(in1, LOW);
 		digitalWrite(in2, HIGH);
 	}
+	return;
+}
+
+void Motor::drive_motor(float volt)
+{
+	// we account for deadband by limiting the voltage between dead_low and dead_up
+	float pwm = floor((abs(volt)/12) * 255);
+	//pwm = 255 - pwm; //if Pmos on H-Bridge (see Dan Kim for explanation)
+	Serial.print(" pwm:");
+	Serial.print(pwm);
+	Serial.print("\n");
+	analogWrite(ena, pwm);
+		
+	// Note, for our purpose, when GND of motor is plugged into Out1, volt<0 causes counter clockwise rotation, [state something about the orientation of the IMU]
+	if (volt >= 0){
+		digitalWrite(in1, HIGH);
+		digitalWrite(in2, LOW);
+	}
+	else {
+		digitalWrite(in1, LOW);
+		digitalWrite(in2, HIGH);
+	}
+	return;
+}
+
+void Motor::test_pwm(int pwm)
+{
+	analogWrite(ena, pwm);
+		
+	// Note, for our purpose, when GND of motor is plugged into Out1, volt<0 causes counter clockwise rotation, [state something about the orientation of the IMU]
+	digitalWrite(in1, LOW);
+	digitalWrite(in2, HIGH);
 	return;
 }
 
@@ -194,7 +240,8 @@ void Motor::CascadeControl(float current_position, float desired_position, float
 	float velocity_error = velocity_command - current_velocity;
 	float voltage_integral = voltage_integral + (velocity_error * Ts);
 	float voltage_command = (velocity_error * kv) + (voltage_integral * ki);
-	drive_motor(deadband_compensation(voltage_command));
+	//drive_motor(deadband_compensation(voltage_command));
+	drive_motor_dead(voltage_command);
 	cascade_call_count = cascade_call_count + 1;
 
 	//Serial.print("Call Count: ");
@@ -205,6 +252,9 @@ void Motor::CascadeControl(float current_position, float desired_position, float
 	//Serial.print((cascade_call_count % pos_vel_proportion) == 0);
 	//Serial.print(" Output:");
 	//Serial.print(output);
+	//Serial.print("\n");
+	//Serial.print(" Ve:");
+	//Serial.print(velocity_error);
 	//Serial.print("\n");
 
 	return;
